@@ -1,4 +1,4 @@
----
+my_---
 title: "Welcome to R!"
 author: "Victoria DelaCruz | Connor Flynn"
 date: ""
@@ -107,6 +107,15 @@ my_age + 5 # how old will you be in 5 years?
 
 #### <span style="color: red;">Challenge 1</span>
 Create a my_name variable with your name assigned to the variable instead of "Victoria DelaCruz". Then, create a my_age variable with your age. 
+
+```{r}
+my_name <- "Stacey Brown Amilian"
+```
+
+```{r}
+my_age = 44
+```
+
 
 #### Different Types of Data
 
@@ -293,6 +302,15 @@ What if we want to subset specific rows? We can do this by using the filter func
 
 #### <span style="color: red;">Challenge 2</span>
 Using the `select()` function, select two new SDG goal scores. Assign it to a variable named `SDG_scores`. 
+
+```{r}
+sdr_data %>%
+  select(goal_1_score, goal_6_score)
+```
+```{r}
+SDG_score <- sdr_data$goal_1_score
+```
+
 
 *2. filter()*
 
