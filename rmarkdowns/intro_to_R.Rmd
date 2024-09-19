@@ -332,6 +332,12 @@ Notes:
 #### <span style="color: red;">Challenge 3</span>
 Using the `filter()` function, filter for another region other than Oceania. Assign it to a variable named `new_region`. 
 
+```{r}
+sdr_data %>% 
+  filter(regions_used_for_the_sdr == "Sub-Saharan Africa")
+```
+
+
 **Important**
 
 When executing the last 2 code chunks, notice that we did not use the assign arrow `<-`, therefore, we did not create any new dataframes
@@ -346,6 +352,11 @@ oceania_data <- sdr_data %>%
 ```
 
 Now, you will have a dataframe called *oceania_data* in your environment pane (top right of the screen) that you can click on
+  
+```{r}
+new_region_SSA <- sdr_data %>% 
+  filter(regions_used_for_the_sdr == "Sub-Saharan Africa")
+```
   
 *3. group_by() and summarise()*
 
