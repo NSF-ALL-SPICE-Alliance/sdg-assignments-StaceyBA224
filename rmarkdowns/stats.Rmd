@@ -215,6 +215,69 @@ ggplot(sdr_data, aes(x = goal_12_score,
     - **Hint** to be able to tell which point is which country, you will have to add `label = country` in the aes function after you tell ggplot what you which scores you want on the x and y axis
      - **Hint** to use the ggplotly() function, you will need to use `library()` to load in the plotly package in the first code chunk in this R Markdown
 
+```{r}
+library(plotly)
+
+```
+```{r}
+SBA_linreg1 <- ggplot(sdr_data, aes(x = goal_1_score, 
+                     y = goal_9_score, label = country)) +
+  geom_point() +
+  geom_smooth() +
+  stat_cor() +
+  theme_minimal() 
+
+ggplotly(SBA_linreg1)
+```
+
+
+``````{r, warning=FALSE, message=FALSE}
+SBA_linereg2a <- ggplot(sdr_data, aes(x = goal_1_score, 
+                     y = goal_3_score, label = country)) +
+  geom_point() +
+  geom_smooth() +
+  stat_cor() +
+  theme_minimal() 
+
+ggplotly(SBA_linereg2a)
+```
+
+
+```{r}
+ggplot(sdr_data, aes(x = goal_1_score, 
+                     y = goal_9_score)) +
+  geom_point() +
+  geom_smooth() +
+  stat_cor() +
+  theme_minimal()
+```
+```{r}
+ggplot(sdr_data, aes(x = goal_1_score, 
+                     y = goal_3_score)) +
+  geom_point() +
+  geom_smooth() +
+  stat_cor() +
+  theme_minimal()
+```
+
+
+```{r}
+PovHealth_reg <- ggplot(sdr_data, aes(x = goal_1_score, 
+                     y = goal_3_score, 
+                     label = country)) +
+  geom_point() +
+  geom_smooth() +
+  stat_cor() +
+  theme_minimal()
+
+ggplotly(PovHealth_reg)
+```
+
+INTERPRETATION:
+The correlation between no poverty (goal 1) and good health & well-beling (goal 3) is a positive one with 0.87 coefficient. This states that there is a positive relationship so as a country does better to improve its poverty, the health of well-being of its residents also increases. This argument makes sense as one is healthy and well, they can work or go to school to improve their lievelihoods. Without good health, the desire to work or go to school is not as important as how ones feels on a day-to-day basis.
+
+Outliers do exist in this scenario. In Venezuela, there is a 19.7 no poverty score and a 62.8 good health and well-being score. This falls outside the trend line and does not follow the trends of other countries. Malawi shows a 0 score for poverty and a 50 for the good health and well-being. These statistics make me wonder if poverty rankings are only tied to capitalist societies and that countries that do more bartering or trading might be struggling with poverty, but their health and well-being is okay. Outliers are less pronounced between these two scores.
+
   - in 4-6 sentences, come up with a hypotheses for the positive or negative correlation between the 2 goals
       
       - are there any points that don't follow the trend (outliers)
