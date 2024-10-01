@@ -333,11 +333,119 @@ plotPartial(pd)
 
 Edit this code chunk `k2 <- kmeans(sdr_data_imputed, centers = 2)` under the silhouette plot to increase the number of clusters
 
+```{r}
+k4 <- kmeans(sdr_data_imputed, centers = 4)
+```
+
+
 - Then, run the code chunk `fviz_cluster(k2, data = sdr_data_imputed) + theme_minimal()` to see the new visualization with the increased number of clusters
+
+```{r}
+fviz_cluster(k4, data = sdr_data_imputed) + 
+  theme_minimal()
+```
+```{r}
+k3 <- kmeans(sdr_data_imputed, centers = 3)
+```
+
+```{r}
+fviz_cluster(k3, data = sdr_data_imputed) + 
+  theme_minimal()
+```
+
   
 #### <span style="color: red;">Challenge 2</span>
 
 Edit this code chunk `rf_matmort <- randomForest(normalized_score_sdg3_matmort ~ ., data = sdr_data_imputed, importance = TRUE)` to predict a different indicator score (any indicator other than normalized_score_sdg3_matmort)
+
+```{r}
+rf_neonat <- randomForest(normalized_score_sdg3_neonat ~ ., data = sdr_data_imputed, importance = TRUE)
+```
+
+```{r}
+rf_obesity <- randomForest(normalized_score_sdg2_obesity ~ ., data = sdr_data_imputed, importance = TRUE)
+```
+
+```{r}
+rf_obesity
+```
+```{r}
+rf_neonat
+```
+```{r}
+importance_df1 <- as.data.frame(rf_obesity$importance)
+```
+
+```{r}
+importance_df_top_10a <- importance_df1 %>%
+  rownames_to_column(var = "variable") %>%
+  slice_max(n = 10, order_by = `%IncMSE`)
+```
+
+```{r}
+ggplot(importance_df_top_10a, aes(x = `%IncMSE`, y = reorder(variable, `%IncMSE`))) +
+  geom_bar(stat = "identity", fill = "steelblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Most Important Variables in Predicting Obesity",
+       subtitle = "Top 10",
+       y = "SDG Indicator",
+       x = "Feature Importance (% Increase in Mean Squared Error)")
+
+```
+
+```{r}
+pdp::partial(rf_obesity, pred.var = "normalized_score_sdg3_tb", plot = TRUE)
+```
+
+INTERPRETATION:
+So, once a tb incidence gets over 80 per 100,000 people, then the predictive ability of obesity starts to decline.
+
+```{r}
+pd1 <- pdp::partial(rf_obesity, pred.var = c("normalized_score_sdg3_tb", "normalized_score_sdg7_cleanfuel"))
+# Default PDP
+plotPartial(pd1)
+```
+INTERPRETATION about OBESITY:
+The predictive ability was only 63%, and it seemed like some of the variables did not make much sense as to how obesity is impacted by both tb incidence and clean fuel for cooking. Seems to be difficult to gauge the effectiveness of this model. Lower rates of tb incidence and lower scores of clean fuel for cooking has more predictive power.
+
+ADDITION: I wanted to run more of these to look at something with a higher predictive number. 
+ROUND 2 - Challenge 2
+```{r}
+rf_neonat <- randomForest(normalized_score_sdg3_neonat ~ ., data = sdr_data_imputed, importance = TRUE)
+```
+```{r}
+rf_neonat
+```
+
+```{r}
+importance_df2 <- as.data.frame(rf_neonat$importance)
+```
+
+```{r}
+importance_df_top_10b <- importance_df2 %>%
+  rownames_to_column(var = "variable") %>%
+  slice_max(n = 10, order_by = `%IncMSE`)
+```
+
+```{r}
+ggplot(importance_df_top_10b, aes(x = `%IncMSE`, y = reorder(variable, `%IncMSE`))) +
+  geom_bar(stat = "identity", fill = "steelblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Most Important Variables in Predicting Neotal Mortality Rate",
+       subtitle = "Top 10",
+       y = "SDG Indicator",
+       x = "Feature Importance (% Increase in Mean Squared Error)")
+```
+```{r}
+pdp::partial(rf_neonat, pred.var = "normalized_score_sdg3_u5mort", plot = TRUE)
+```
+```{r}
+pd2 <- pdp::partial(rf_neonat, pred.var = c("normalized_score_sdg3_u5mort", "normalized_score_sdg3_lifee"))
+# Default PDP
+plotPartial(pd2)
+```
+ROUND 2 INTERPRETATION:
+Having a higher percentage of variance explained makes the additional charts and graphs much easier to explain. The neonatal mortality was much easier to have predictive variables with under 5 mortality and overall life expectancy. The other strong variables were maternal mortality and universal health coverage. Again, this variable seemed much easier to predict than obesity.
 
 - Rename the random forest model from rf_matmort to something that more accurately represents the model (base the name on the indicator you are predicting)
 
