@@ -1,0 +1,312 @@
+---
+title: "Sustainable Development Goals in SSA and DRC"
+author: "Stacey Brown Amilian"
+date: "2024-10-18"
+output: html_document
+---
+
+### Final Project
+I recently read a nonfiction novel that was a finalist for the Pulitzer Prize called "Cobalt Red: How the Blood of the Congo Powers our Lives" by Siddarth Kara. This novel examines cobalt mining operations in the southeastern Congo. This rare metal is used in a variety of products, but especially any lithium-ion battery that can be found in smartphones, computers, tablets, and electric vehicles. With roughly 75% of the world's supply of cobalt mined in the Congo, I wanted to investigate if any SDG's for this country reflect both the new wealth (which is unevenly distributed) as well as the working conditions and the environmental and health issues that are occurring in the DRC. Rather than diving right in to the DRC, I want to examine various SDG goals in Sub-Saharan Africa.
+
+Step 1: Load Required Packages
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+library(janitor)
+library(naniar)
+library(plotly)
+library(ggpubr)
+library(leaflet)
+library(rnaturalearth)
+library(sf)
+library(missRanger)
+library(cluster)
+library(factoextra)
+library(randomForest)
+library(rnaturalearthdata)
+library(stringr)
+library(dplyr)
+library(cowplot)
+```
+
+The data that will be used is the overall SDG goals, thus we need to load the data, clean up the names and then get ready for analysis. 
+
+```{r, message=FALSE}
+sdr_data1 <- read_csv(here("data/SDR-2023-Data.csv")) 
+```
+
+Cleaning names
+```{r}
+sdr_data1 <- clean_names(sdr_data1) # cleaning column names 
+```
+
+Rather than focusing on all the countries, let's focus specifically on the DRC and its region of Sub-Saharan Africa.
+
+```{r}
+ssa_sdr_data <- sdr_data1 %>% 
+  filter(regions_used_for_the_sdr == "Sub-Saharan Africa") # filtering for SSA countries only
+```
+
+Now, we will examine how the countries in this region are doing on the overall SDG index score. 
+
+```{r}
+ggplot(ssa_sdr_data, aes(x= x2023_sdg_index_score, y = country)) +
+  geom_bar(stat = "identity") 
+```
+
+The above chart provides a glimpse of the variety of scores that exist for Sub-Saharan African countries. Eleven countries are above 60, with two countries having an overall SDG score in the 40s. There are four countries with missing data. I think it is important to show that not every single country in Sub-Saharan Africa is doing poorly; scores vary considerably even in one region! While the chart is helpful, it is difficult to comprehend and not interactive. Let's use some additional features such as reordering, color-coding, and interactive graphs to make the data more user-friendly. Even though we are looking at all the countries in Sub-Saharan Africa, I still want to keep drawing attention to the DRC, thus, I have created code that will isolate DRC and have its bar in the graph be a separate color.
+
+```{r}
+# Check if the country column contains the exact name "Democratic Republic of the Congo"
+print(unique(ssa_sdr_data$country))  # Print unique country names for verification
+
+# Create the highlight column again and print it for debugging
+ssa_sdr_data$highlight <- ifelse(ssa_sdr_data$country == "Congo, Dem. Rep.", "DRC", "Other")
+print(unique(ssa_sdr_data$highlight))  # Print unique values in 'highlight'
+
+# Ensure 'highlight' is a factor for proper coloring
+ssa_sdr_data$highlight <- factor(ssa_sdr_data$highlight, levels = c("DRC", "Other"))
+
+# Plot with updated legend name and removal of country labels
+p <- ggplot(ssa_sdr_data, aes(y = reorder(country, x2023_sdg_index_score), 
+                              x = x2023_sdg_index_score, 
+                              fill = highlight,  # Use the 'highlight' column for color
+                              text = paste("Country:", country, "<br>SDG Score:", x2023_sdg_index_score))) + 
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Overall SDG Scores for Sub-Saharan Africa", 
+       subtitle = "Click on a bar for specific information", 
+       x = "SDG Scores", 
+       y = "Country", 
+       fill = "Legend") +  # Change legend title to "Legend"
+  scale_fill_manual(values = c("DRC" = "red", "Other" = "blue")) +  # Specify custom colors
+  theme_minimal() +
+  theme(axis.text.y = element_blank(), axis.text.x = element_blank())  # Remove axis text
+
+# Convert to an interactive plotly object, keeping the tooltip for 'text'
+interactive_plot <- ggplotly(p, tooltip = "text")
+
+# Display the interactive plot
+interactive_plot
+
+```
+
+
+As we can see from the above chart, the DRC has the 5th lowest score for all of Sub-Saharan Africa countries. With a score of 48.6, the country is struggling on many SDG goals. This chart took a little effort to make sure that the DRC could be separated out and yet still keep the data all together. I really like the second chart over the first one to get a little more insight with the data and also adding that interactivity with hovering over the chart. Before we focus specifically on the DRC, let's examine what might influence employment and electronic waste disposal for Sub-Saharan African countries. 
+
+
+Let's focus on Goal 8 - Decent Work and Economic Growth (https://sdgs.un.org/goals/goal8#targets_and_indicators). One of the major concerns for cobalt mining is the working conditions. Let's examine those further with looking at the normalized scores for the targets and indicators. We will perform various statistical analysis and compare Goal 8 with others in the overall SDG data.
+
+```{r}
+ssa_sdr_data_normalized_scores <- ssa_sdr_data %>% 
+  select(country, contains("normalized_score"))
+```
+
+```{r}
+sum(is.na(ssa_sdr_data_normalized_scores))
+```
+
+```{r}
+49 * 99
+```
+
+Approximately, 16% of the data is missing in the Sub-Saharan Africa normalized data (790/4851). Let's make sure the data that we are curious about with cobalt mining is not part of those missing values.
+
+```{r, fig.height=10}
+gg_miss_var(ssa_sdr_data_normalized_scores, show_pct = TRUE) +
+  theme(axis.text.y = element_text(size = 8)) 
+```
+
+Viewing this chart, Goal 8 looks to be okay, but let's make sure that the DRC is not missing a whole lot of variables.
+
+```{r}
+ssa_sdr_data_normalized_scores_longer <- ssa_sdr_data_normalized_scores %>% 
+  pivot_longer(cols = !country)
+```
+
+```{r}
+missing_data_for_ssa_by_country <- ssa_sdr_data_normalized_scores_longer %>%
+ group_by(country) %>%
+ miss_var_summary() %>% 
+ arrange(desc(pct_miss))
+
+missing_data_for_ssa_by_country
+```
+As we saw in the overall SDG score, this table shows us that four countries are missing 100% of the scores and that the DRC is only missing 7%! 
+
+We still want to make sure that our data is not full of missing values. Let's review in our new dataset the variables that are missing data and focus on keeping the variables where less than 20% of the data is missing.
+
+```{r, fig.height=10}
+gg_miss_var(ssa_sdr_data_normalized_scores, show_pct = TRUE) +
+  theme(axis.text.y = element_text(size = 8)) +
+  geom_hline(yintercept = 20, color = "orange", linetype = "dashed")
+```
+
+We will create a new dataframe that drops those columns to the right of the orange line above.
+
+```{r}
+ssa_sdr_data_normalized_scores_less_na <- ssa_sdr_data_normalized_scores %>%
+  select(where(~ sum(is.na(.))/length(.) <= 0.2))
+```
+
+We still need to be careful about missing data, so let's use the random forest method to impute missing data.
+
+```{r  message=FALSE, results='hide'}
+ssa_sdr_data_imputed <- missRanger(ssa_sdr_data_normalized_scores_less_na)
+```
+
+Let's focus now on trying to predict what impacts a specific indicator. Which of the 98 SDG Indicators in the 2023 Sustainable Development Report are the **strongest predictors** of unemployment?
+
+To answer this question, we train a random forest model to make predictions of unemployment scores for each country and then ask the model which SDG Scores were the most important/influential in making it's prediction.
+
+```{r}
+
+rf_unemp <- randomForest(normalized_score_sdg8_unemp ~ .,
+                             data = ssa_sdr_data_imputed,
+                             importance = TRUE)
+
+rf_unemp
+```
+A little over 50% of the variance is explained, which means there is more variables that should be added. However, let's examine the variables that are most important for unemployment.
+
+```{r}
+importance_df <- as.data.frame(rf_unemp$importance)
+```
+
+```{r}
+importance_df_top_10 <- importance_df %>%
+  rownames_to_column(var = "variable") %>%
+  slice_max(n = 10, order_by = `%IncMSE`)
+```
+
+```{r}
+ggplot(importance_df_top_10, aes(x = `%IncMSE`, y = reorder(variable, `%IncMSE`))) +
+  geom_bar(stat = "identity", fill = "orange", color = "gray") +
+  theme_minimal() +
+  labs(title = str_wrap("Top 10 Most Important Variables in Predicting Unemployment in Sub-Saharan Africa", width = 50),
+       y = "SDG Indicator",
+       x = "Feature Importance (% Increase in Mean Squared Error)") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+These results are a bit difficult to decipher. The most important variable for unemployment is obesity. However, the second most influential variable is more of concern with births attended by skilled health personnel. The chart above shows for all countries in Sub-Saharan Africa and unemployment might not be our best choice. Let's follow similar steps as above and predict what influences electronic waste disposal.
+
+```{r}
+rf_ewaste <- randomForest(normalized_score_sdg12_ewaste ~ .,
+                             data = ssa_sdr_data_imputed,
+                             importance = TRUE)
+
+rf_ewaste
+```
+This choice is looking better with over 73% of the variance explained. Let's see what the major influential variables are for e-waste. 
+
+```{r}
+importance_df_ewaste <- as.data.frame(rf_ewaste$importance)
+```
+
+```{r}
+importance_df_top_10_ewaste <- importance_df_ewaste %>%
+  rownames_to_column(var = "variable") %>%
+  slice_max(n = 10, order_by = `%IncMSE`)
+```
+
+```{r}
+ggplot(importance_df_top_10_ewaste, aes(x = `%IncMSE`, y = reorder(variable, `%IncMSE`))) +
+  geom_bar(stat = "identity", fill = "green" , color = "gray") +
+  theme_minimal() +
+  labs(title = str_wrap("Top 10 Most Important Variables in Predicting Proper E-Waste Disposal in Sub-Saharan Africa", width = 50),
+       y = "SDG Indicator",
+       x = "Feature Importance (% Increase in Mean Squared Error)") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+These results are also a bit surprising with the first most influential variable referring to the population with access to clean fuels and technology for cooking (%). The second variable refers to carbon dioxide emissions from fossil fuel combustion and cement production. Unfortunately, the third most important variable is difficult to understand and I have not been able to find data about this sdg 15 goal with life on land. The fourth most important variables articles published in academic journals (per 1,000 population). Again, this variable does not seem that it would fit with e-waste disposal.
+
+Now that we have an idea of what might influence unemployment and e-waste, we will focus our attention on the scores for the DRC only. I always like to have a sense of place when I am doing research, thus, many of you might not know where the Democratic Republic of the Congo is located so let's create a map! We will load and prepare our data, create the main map, create an inset map and then finally combine and display the maps.
+
+```{r}
+# Load world shapefile from rnaturalearth
+world <- ne_countries (scale = "medium", returnclass = "sf" )
+
+# Filter for DRC
+drc <- world[world$name == "Dem. Rep. Congo", ]
+
+# Create the main map
+main_map <- ggplot() +
+  geom_sf(data = world, fill = "lightgrey") +
+  geom_sf(data = drc, fill = "blue") +
+  theme_minimal() +
+  coord_sf(xlim = c(12, 32), ylim = c(-13, 6))
+
+# Create the inset map
+inset_map <- ggplot() +
+  geom_sf(data = world, fill = "lightgrey") +
+  geom_sf(data = drc, fill = "blue") +
+  theme_void() +
+  coord_sf(xlim = c(-20, 55), ylim = c(-35, 40))
+
+# Combine the maps
+combined_map <- ggdraw() +
+  draw_plot(main_map) +
+  draw_plot(inset_map, x = 0.7, y = 0.7, width = 0.25, height = 0.25)
+
+# Display the combined map
+print(combined_map)
+```
+
+First, we will create a new dataset with only the DRC data.
+
+```{r}
+drc_sdr_data1 <- sdr_data1 %>% 
+  filter(country == "Congo, Dem. Rep.") # filtering for the Democratic Republic of Congo only
+```
+
+Next, we want to look at how the country is doing on specific goals that are tied to cobalt mining. Based on the random forest models above, I have selected variables that have been shown to be imiportant for unemployment and e-waste disposal. 
+
+```{r}
+drc_sdr_dataA <- data.frame(SDG = c("Goal 2: No Hunger", "Goal 7: Affordable and Clean Energy", "Goal 8: Decent Work and Economic Growth", "Goal 9: Industry, Innovation, and Infrastructure", "Goal 13: Climate Action", "Goal 14: Life Below Water", "Goal 15: Life on Land"), Value = c(51.7, 70.3, 74.6, 51.8, 91.4, 49.0, 27.4))
+
+# Reorder the SDG factor levels
+drc_sdr_dataA$SDG <- factor(drc_sdr_dataA$SDG, levels = c("Goal 2: No Hunger", "Goal 7: Affordable and Clean Energy", "Goal 8: Decent Work and Economic Growth", "Goal 9: Industry, Innovation, and Infrastructure", "Goal 13: Climate Action", "Goal 14: Life Below Water", "Goal 15: Life on Land"))
+
+# Function to wrap text
+wrap_text <- function(x) str_wrap(x, width = 12)
+
+ggplot(drc_sdr_dataA, aes(x= SDG, y = Value)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(title = "Selected SDG Scores for the Democratic Republic of the Congo", subtitle = "Results from Random Forest Models", x = "Specific SDG Goals", y = "Value") +
+  scale_x_discrete(labels = wrap_text) +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5), plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5))
+
+```
+
+
+From this chart, it seems that there are some positive trends for the DRC, especially in regards to Climate Action. However, these charts do not necessarily reveal how the DRC is doing in reference to other countries. Additionally, these scores might be masking elements such as informal work and child labor. While using the random forest models is valuable, I have done research online and identified 7 goals that are important to examine when thinking about artisanal and small mining operations, which is how most cobalt is found. We will make another bar chart with them and then compare the two charts for further analysis.  
+
+
+```{r}
+drc_sdr_data1 <- data.frame(SDG = c("Goal 1: No Poverty", "Goal 3: Good Health and Well-being", "Goal 4: Quality Education", "Goal 8: Decent Work and Economic Growth", "Goal 12: Responsible Consumption and Production", "Goal 13: Climate Action", "Goal 16: Peace, Justice, and Strong Institutions"), Value = c(8.2, 34.2, 42.7, 60.5, 97.7, 99.6, 36.2))
+
+# Reorder the SDG factor levels
+drc_sdr_data1$SDG <- factor(drc_sdr_data1$SDG, levels = c("Goal 1: No Poverty", "Goal 3: Good Health and Well-being", "Goal 4: Quality Education", "Goal 8: Decent Work and Economic Growth", "Goal 12: Responsible Consumption and Production", "Goal 13: Climate Action", "Goal 16: Peace, Justice, and Strong Institutions"))
+
+# Function to wrap text
+wrap_text <- function(x) str_wrap(x, width = 12)
+
+ggplot(drc_sdr_data1, aes(x= SDG, y = Value)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(title = "Selected SDG Scores for the Democratic Republic of the Congo", x = "Specific SDG Goals", y = "Value") +
+  scale_x_discrete(labels = wrap_text) +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5), plot.title = element_text(hjust = 0.5))  # Adjust the angle here if needed
+
+```
+
+
+As the above chart shows, the DRC has a wide variety of scores. The first goal of no poverty has the lowest score with just 8.2. This low score is problematic in that there are only 7 other countries around the world with a lower poverty score. This score is concerning in that the demand for cobalt is high, yet the workers are not getting their fair share of wages from this important rare metal. The responsible consumption and production has a score of 97.7, which is a higher score than countries in Europe. This goal includes shopping and eating locally, being conscious of packaging, and buying second hand. The DRC's highest score belongs to climate action with 99.6; this goal includes low greenhouse gas emissions and number of deaths due to natural disasters. Even though these scores are strong and better than some developed countries, I am concerned that the true results of the cobalt mining operations are not being captured. 
+
+While the results of this project have produced surprising results, I am not sure that the Sustainable Development Report is capturing the data that is needed to truly capture the impacts of cobalt mining. More research is needed to identify how the demand for this rare metal is impacting the people of the Democratic Republic of the Congo and other neighboring countries in Sub-Saharan Africa.
